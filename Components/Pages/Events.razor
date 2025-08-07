@@ -1,0 +1,201 @@
+@page "/events"
+@using EventEase.Components
+@using System.ComponentModel.DataAnnotations
+@using EventEase.Models
+@using EventEase.Services
+@inject IEventService EventService
+@inject ILocalStorageService LocalStorageService
+
+<h2>Event Manager</h2>
+
+<EditForm Model="newEvent" OnValidSubmit="AddEvent" class="mb-3">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    
+    <div class="mb-2">
+        <label for="eventName" class="form-label">Event Name</label>
+        <InputText id="eventName" @bind-Value="newEvent.Name" class="form-control" />
+        <ValidationMessage For="@(() => newEvent.Name)" />
+    </div>
+    
+    <div class="mb-2">
+        <label for="eventDate" class="form-label">Event Date</label>
+        <InputDate id="eventDate" @bind-Value="newEvent.Date" class="form-control" />
+        <ValidationMessage For="@(() => newEvent.Date)" />
+    </div>
+    
+    <div class="mb-2">
+        <label for="eventLocation" class="form-label">Event Location</label>
+        <InputText id="eventLocation" @bind-Value="newEvent.Location" class="form-control" />
+        <ValidationMessage For="@(() => newEvent.Location)" />
+    </div>
+    
+    <div class="mb-2">
+        <label for="eventUser" class="form-label">Event Organizer</label>
+        <InputText id="eventUser" @bind-Value="newEvent.EventUser" class="form-control" />
+        <ValidationMessage For="@(() => newEvent.EventUser)" />
+    </div>
+    
+    <div class="mb-2">
+        <label for="eventUserEmail" class="form-label">Organizer Email</label>
+        <InputText id="eventUserEmail" @bind-Value="newEvent.EventUserEmail" class="form-control" />
+        <ValidationMessage For="@(() => newEvent.EventUserEmail)" />
+    </div>
+    
+    <button type="submit" class="btn btn-success mt-2">Add Event</button>
+</EditForm>
+
+@if (isLoading)
+{
+    <div class="spinner-border" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+}
+else
+{
+    <div class="event-list">
+        @foreach (var evt in events)
+        {
+            <EventCard 
+                EventId="@evt.Id"
+                EventName="@evt.Name" 
+                EventDate="@evt.Date" 
+                EventLocation="@evt.Location"
+                EventUser="@evt.EventUser"
+                EventUserEmail="@evt.EventUserEmail"
+                HasAttended="@evt.HasAttended"
+                OnUpdate="@((EventModel updatedEvent) => UpdateEvent(evt, updatedEvent))" 
+                OnDelete="@(() => DeleteEvent(evt))" />
+        }
+    </div>
+}
+
+@code {
+    private List<EventModel> events = new();
+    private EventModel newEvent = new();
+    private bool isLoading = true;
+    private bool isLocalStorageAvailable = false;
+    private bool initialLoadComplete = false;
+
+    // Remove OnInitialized to avoid loading events twice
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Only perform localStorage operations after first render
+            await LoadEventsFromLocalStorage();
+            
+            // Force a re-render if data changed
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadEventsFromLocalStorage()
+    {
+        try
+        {
+            if (initialLoadComplete)
+            {
+                return; // Prevent multiple loads
+            }
+            
+            // Check if localStorage is available
+            isLocalStorageAvailable = await LocalStorageService.IsAvailableAsync();
+            
+            if (isLocalStorageAvailable)
+            {
+                // Try to load events from localStorage
+                var storedEvents = await LocalStorageService.GetEventsAsync();
+                
+                if (storedEvents != null && storedEvents.Any())
+                {
+                    events = storedEvents;
+                }
+                else
+                {
+                    // Only if no events in localStorage, get from service
+                    events = EventService.GetEvents();
+                    
+                    // Save to localStorage
+                    if (events.Any())
+                    {
+                        await LocalStorageService.SaveEventsAsync(events);
+                    }
+                }
+            }
+            else
+            {
+                // Fallback to service if localStorage is not available
+                events = EventService.GetEvents();
+            }
+            
+            initialLoadComplete = true;
+        }
+        finally
+        {
+            // Set loading to false regardless of result
+            isLoading = false;
+        }
+    }
+
+    private async Task AddEvent()
+    {
+        var newEventModel = new EventModel
+        {
+            Name = newEvent.Name,
+            Date = newEvent.Date,
+            Location = newEvent.Location,
+            EventUser = newEvent.EventUser,
+            EventUserEmail = newEvent.EventUserEmail
+        };
+        
+        // Add to service
+        await EventService.AddEventAsync(newEventModel);
+        
+        // Add to events list
+        events.Add(newEventModel);
+        
+        // Save to localStorage if available
+        if (isLocalStorageAvailable)
+        {
+            await LocalStorageService.SaveEventsAsync(events);
+        }
+
+        newEvent = new EventModel();
+    }
+
+    private async Task UpdateEvent(EventModel evt, EventModel updatedEvent)
+    {
+        evt.Name = updatedEvent.Name;
+        evt.Date = updatedEvent.Date;
+        evt.Location = updatedEvent.Location;
+        evt.EventUser = updatedEvent.EventUser;
+        evt.EventUserEmail = updatedEvent.EventUserEmail;
+        evt.HasAttended = updatedEvent.HasAttended;
+        
+        // Update the service
+        await EventService.UpdateEventAsync(evt);
+        
+        // Update localStorage if available
+        if (isLocalStorageAvailable)
+        {
+            await LocalStorageService.SaveEventsAsync(events);
+        }
+    }
+
+    private async Task DeleteEvent(EventModel evt)
+    {
+        // Remove from service
+        await EventService.DeleteEventAsync(evt);
+        
+        // Remove from events list
+        events.Remove(evt);
+        
+        // Update localStorage if available
+        if (isLocalStorageAvailable)
+        {
+            await LocalStorageService.SaveEventsAsync(events);
+        }
+    }
+}

@@ -1,0 +1,76 @@
+<div class="event-card card mb-3">
+    <div class="card-header">
+        <h5 class="mb-3">
+            <div class="mb-2">
+                <label for="eventName" class="form-label">Event Name</label>
+                <input type="text" id="eventName" @bind="EventName" placeholder="Event Name" class="form-control" />
+            </div>
+            <div>
+                <label for="eventOrganizer" class="form-label">Organized by</label>
+                <input type="text" id="eventOrganizer" @bind="EventUser" placeholder="Organizer" class="form-control" />
+            </div>
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="row mb-2">
+            <div class="col">
+                <label>Date:</label>
+                <input type="date" @bind="EventDate" class="form-control" />
+            </div>
+            <div class="col">
+                <label>Location:</label>
+                <input type="text" @bind="EventLocation" placeholder="Location" class="form-control" />
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col">
+                <label>Organizer Email:</label>
+                <input type="email" @bind="EventUserEmail" placeholder="Organizer Email" class="form-control" />
+            </div>
+        </div>
+        <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" @bind="HasAttended" id="attendedCheck-@EventId" />
+            <label class="form-check-label" for="attendedCheck-@EventId">
+                I have attended this event
+            </label>
+        </div>
+        <div class="d-flex justify-content-end">
+            <button class="btn btn-primary me-2" @onclick="UpdateEvent">Update</button>
+            <button class="btn btn-danger" @onclick="DeleteEvent">Delete</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public Guid EventId { get; set; }
+    [Parameter] public string EventName { get; set; } = string.Empty;
+    [Parameter] public DateTime EventDate { get; set; } = DateTime.Today;
+    [Parameter] public string EventLocation { get; set; } = string.Empty;
+    [Parameter] public string EventUser { get; set; } = string.Empty;
+    [Parameter] public string EventUserEmail { get; set; } = string.Empty;
+    [Parameter] public bool HasAttended { get; set; } = false;
+
+    [Parameter] public EventCallback<EventModel> OnUpdate { get; set; }
+    [Parameter] public EventCallback OnDelete { get; set; }
+
+    private async Task UpdateEvent()
+    {
+        var updatedEvent = new EventModel
+        {
+            Id = EventId,
+            Name = EventName,
+            Date = EventDate,
+            Location = EventLocation,
+            EventUser = EventUser,
+            EventUserEmail = EventUserEmail,
+            HasAttended = HasAttended
+        };
+        
+        await OnUpdate.InvokeAsync(updatedEvent);
+    }
+
+    private async Task DeleteEvent()
+    {
+        await OnDelete.InvokeAsync();
+    }
+}
